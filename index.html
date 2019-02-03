@@ -3,21 +3,55 @@
   <head>
     <title>Snake__s</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font: 13px Helvetica, Arial; }
-      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
-      form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
-      form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-      #messages { list-style-type: none; margin: 0; padding: 0; }
-      #messages li { padding: 5px 10px; }
-      #messages li:nth-child(odd) { background: #eee; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font: 13px Helvetica, Arial; }
+        form { background: rgb(90, 84, 84); padding: 3px; position: fixed; bottom: 0; width: 35%; }
+        form input { border: 0; padding: 10px; width: 89%; margin-right: .5%; }
+        form button { width: auto; background: rgb(223, 230, 233); border: none; padding: 10px; }
+        #auth { width: auto; background: rgb(223, 230, 233); border: none; padding: 10px; }
+        #nickname { border: 0; padding: 10px; width: 50%; margin-right: .5%; }
+        #own { padding: 0px 0px 15px 10px;}
+        ul { list-style-type: none; margin: 0; padding: 0; }
+        li { padding: 5px 10px; }
+        #messages li:nth-child(odd) { background: #eee; }
+        #scores { float: right; padding-top: 16px; padding-right: 16px; }
+        #wrapper { width: 100%; height:900px;}
+        #gamecanvas { float:left; width: 65%; height: 100%; background: rgb(77, 61, 61); padding:10px; text-align:center;}
+        #scores { float:left; width: 35%; height: 30%; background: rgb(180, 193, 223);}
+        #msgsection { float:left; width: 35%; height: 70%; background: rgb(211, 211, 240); }
     </style>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+  </head>
+  <body>
+    <div id="wrapper" style="display:block;">
+        <div id="gamecanvas"></div>
+        <div id="scores">
+                <div id="own">
+                    Nickname: <input type="text" id="nickname" />
+                    <input type="button" id="auth" value="Play!" />
+                </div>
+                <hr />
+                <ul id="others">
+                </ul>
+        </div>
+        <div id="msgsection">
+            <ul id="messages"></ul>
+            <form action="">
+                <input id="m" style="display:inline"} autocomplete="off" />
+                <button style="display:inline">Send</button>
+            </form>
+        </div>
+    </div>
     <script>
+        window.addEventListener("keydown", function(e) {
+            // space and arrow keys
+            if([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+                e.preventDefault();
+            }
+        }, false);
+        var socket = io();
         $(function () {
-            var socket = io();
             $('form').submit(function(e){
                 e.preventDefault(); // prevents page reloading
                 socket.emit('chat message', $('#m').val());
@@ -25,15 +59,112 @@
                 return false;
             });
             socket.on('chat message', function(msg){
-              $('#messages').append($('<li>').text(msg));
+                $('#messages').append($('<li>').text(msg));
             });
         });
+        GameCanvas = (function() {
+            /*
+            Constructor
+            */
+            function GameCanvas(canvas) {
+                var ratio = window.innerWidth < window.innerHeight ?
+                    window.innerWidth : window.innerHeight;
+
+                this.canvas = canvas;
+                this.canvas.width = this.canvas.height = ratio;
+                this.context = this.canvas.getContext('2d');
+                this.gridSize = 40;
+                this.cellSize = ratio / this.gridSize;
+            }
+
+            /*
+            Render game canvas & draw players, apples & scores
+            */
+            GameCanvas.prototype.draw = function(players, apples) {
+                var context = this.context;
+                var cellSize = this.cellSize;
+
+                // Render background
+                this.context.fillStyle = "#555";
+                this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Reset other
+                $('#others').text('');
+
+                // Render scores
+                players.forEach((p) => {
+
+                // scores
+                if(p.id === playerId) {
+                    $('#own')
+                    .text(p.nickname + ' score: ' + p.points)
+                    .append($('<br>'));
+                } else {
+                    $('#others')
+                    .append($('<li>').text(p.nickname + ' ' + p.id + ': ' + p.points));
+                }
+
+                // players
+                if(p.id === playerId) {
+                    context.fillStyle = "#fff";
+                } else {
+                    context.fillStyle = "#4286f4";
+                }
+                context.fillRect(p.x*cellSize, p.y*cellSize, cellSize, cellSize);
+
+                // tails
+                p.tail.forEach((t) => {
+                    context.fillRect(t.x*cellSize, t.y*cellSize, cellSize, cellSize);
+                });
+                });
+
+                // Render apples
+                apples.forEach((a) => {
+                context.fillStyle = "#ff0000";
+                context.fillRect(a.x*cellSize, a.y*cellSize, cellSize, cellSize);
+                });
+            }   
+            return GameCanvas;
+        })();
+
+        /*
+        Initialize Game
+        */
+
+        var playerId;
+        var nickname;
+
+        // Authenticate
+        $('#auth').click(() => {
+        nickname = $('#nickname').val().trim();
+        if(nickname && nickname !== '') {
+            socket.emit('auth', { nickname }, (session) => {
+            playerId = session.id;
+            console.log('new session: ' + playerId);
+            });
+        }
+        });
+
+        // Create & insert canvas
+        var canvas = document.createElement("canvas");
+        document.getElementById("gamecanvas").appendChild(canvas);
+
+        // Create game with canvas
+        var game = new GameCanvas(canvas);
+
+        // Send keystrokes
+        document.onkeydown = (ev) => {
+            socket.emit('key', ev.keyCode);
+            if([32, 37, 38, 39, 40].indexOf(ev.keyCode) > -1) {
+                e.preventDefault();
+            }
+        }
+
+        // Receive state from server
+        socket.on('state', (stuff) => {
+        // and redraw the game
+        game.draw(stuff.players, stuff.apples);
+        });
     </script>
-  </head>
-  <body>
-    <ul id="messages"></ul>
-    <form action="">
-      <input id="m" autocomplete="off" /><button>Send</button>
-    </form>
   </body>
 </html>

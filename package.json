@@ -2,11 +2,12 @@
     "name": "snake_ss",
     "version": "0.0.1",
     "description": "multiplayer snake using socket.io",
-    "scripts":{
-        "start" : "node index.js"
+    "scripts": {
+        "start": "node index.js"
     },
     "dependencies": {
         "express": "^4.15.2",
+        "lodash": "^4.16.4",
         "socket.io": "^2.2.0"
     }
 }
